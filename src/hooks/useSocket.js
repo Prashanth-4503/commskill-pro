@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { io } from 'socket.io-client';
 
-const SOCKET_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+const SOCKET_URL = 'https://commskill-pro-backend.onrender.com';  // ← NO localhost fallback
+
 
 export function useSocket() {
     const [socket] = useState(() => io(SOCKET_URL, { autoConnect: true }));
