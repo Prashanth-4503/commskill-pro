@@ -1,19 +1,110 @@
+/* global require, process */
+require('dotenv').config();
 const express = require('express');
 const { createServer } = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
+const Groq = require('groq-sdk');
+const multer = require('multer');
+const upload = multer();
 
 const app = express();
-app.use(cors());
+
+const allowedOrigins = [
+  'http://localhost:5173',
+  process.env.FRONTEND_URL
+].filter(Boolean);
+
+app.use(cors({
+  origin: allowedOrigins,
+  methods: ['GET', 'POST']
+}));
+
 app.use(express.json());
 
-const httpServer = createServer(app);
-const io = new Server(httpServer, {
-  cors: { origin: 'http://localhost:5173', methods: ['GET', 'POST'] }
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+
+// ── Groq Chat ──────────────────────────────────────────────
+app.post('/api/groq/chat', async (req, res) => {
+  try {
+    const { messages, options = {} } = req.body;
+    const completion = await groq.chat.completions.create({
+      model: options.model || 'llama-3.3-70b-versatile',
+      messages,
+      temperature: options.temperature ?? 0.7,
+      max_tokens: options.maxTokens || 1024,
+      ...options.extra,
+    });
+    res.json({ content: completion.choices[0]?.message?.content || '' });
+  } catch (err) {
+    console.error('[/api/groq/chat]', err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
-// In-memory room store
-// rooms: { roomCode -> { topic, hostId, participants: [{id, name, speech, submitted}], phase } }
+// ── Groq Chat Stream ───────────────────────────────────────
+app.post('/api/groq/chat-stream', async (req, res) => {
+  try {
+    const { messages, options = {} } = req.body;
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    const stream = await groq.chat.completions.create({
+      model: options.model || 'llama-3.3-70b-versatile',
+      messages,
+      temperature: options.temperature ?? 0.7,
+      max_tokens: options.maxTokens || 1024,
+      stream: true,
+      ...options.extra,
+    });
+
+    for await (const chunk of stream) {
+      const text = chunk.choices[0]?.delta?.content || '';
+      if (text) res.write(`data: ${JSON.stringify({ text })}\n\n`);
+    }
+    res.write('data: [DONE]\n\n');
+    res.end();
+  } catch (err) {
+    console.error('[/api/groq/chat-stream]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Groq Whisper ───────────────────────────────────────────
+app.post('/api/groq/whisper', upload.single('audio'), async (req, res) => {
+  try {
+    const audioFile = new File(
+      [req.file.buffer],
+      'audio.webm',
+      { type: req.file.mimetype || 'audio/webm' }
+    );
+    const transcription = await groq.audio.transcriptions.create({
+      file: audioFile,
+      model: 'whisper-large-v3-turbo',
+      language: req.body.language || 'en',
+      response_format: 'text',
+    });
+    res.json({
+      text: typeof transcription === 'string'
+        ? transcription
+        : transcription?.text || ''
+    });
+  } catch (err) {
+    console.error('[/api/groq/whisper]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Socket.io setup ────────────────────────────────────────
+const httpServer = createServer(app);
+const io = new Server(httpServer, {
+  cors: {
+    origin: allowedOrigins,
+    methods: ['GET', 'POST']
+  }
+});
+
 const rooms = new Map();
 
 function generateRoomCode() {
@@ -26,7 +117,6 @@ function generateRoomCode() {
 io.on('connection', (socket) => {
   console.log(`Socket connected: ${socket.id}`);
 
-  // Host creates a room
   socket.on('create-room', ({ name }, callback) => {
     const code = generateRoomCode();
     const room = {
@@ -44,7 +134,6 @@ io.on('connection', (socket) => {
     console.log(`Room ${code} created by ${name}`);
   });
 
-  // Participant joins a room
   socket.on('join-room', ({ name, roomCode }, callback) => {
     const room = rooms.get(roomCode);
     if (!room) return callback({ success: false, error: 'Room not found. Check the code and try again.' });
@@ -61,7 +150,6 @@ io.on('connection', (socket) => {
     console.log(`${name} joined room ${roomCode}`);
   });
 
-  // Host sets the topic and starts the discussion
   socket.on('set-topic', ({ topic }, callback) => {
     const code = socket.data.roomCode;
     const room = rooms.get(code);
@@ -73,7 +161,6 @@ io.on('connection', (socket) => {
     callback?.({ success: true });
   });
 
-  // Participant submits their speech
   socket.on('submit-speech', ({ speech }, callback) => {
     const code = socket.data.roomCode;
     const room = rooms.get(code);
@@ -87,7 +174,6 @@ io.on('connection', (socket) => {
     console.log(`${participant.name} submitted speech in room ${code}`);
   });
 
-  // Host triggers evaluation
   socket.on('request-evaluation', ({ evaluationResult }, callback) => {
     const code = socket.data.roomCode;
     const room = rooms.get(code);
@@ -98,7 +184,6 @@ io.on('connection', (socket) => {
     callback?.({ success: true });
   });
 
-  // Host ends the room
   socket.on('end-room', () => {
     const code = socket.data.roomCode;
     if (code) {
@@ -107,7 +192,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Get room speeches (for host to run evaluation)
   socket.on('get-speeches', (callback) => {
     const code = socket.data.roomCode;
     const room = rooms.get(code);
@@ -130,7 +214,6 @@ io.on('connection', (socket) => {
   });
 });
 
-// Strip sensitive data before sending to clients
 function sanitizeRoom(room, code) {
   return {
     roomCode: code,
@@ -143,5 +226,5 @@ function sanitizeRoom(room, code) {
   };
 }
 
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 httpServer.listen(PORT, () => console.log(`CommSkill Pro backend running on port ${PORT}`));
