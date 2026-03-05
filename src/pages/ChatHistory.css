@@ -1,0 +1,181 @@
+/* ===== CHAT HISTORY PAGE ===== */
+
+.ch-page {
+    min-height: calc(100vh - var(--navbar-height));
+}
+
+.ch-content {
+    padding-top: 32px;
+    padding-bottom: 60px;
+}
+
+/* ===== EMPTY STATE ===== */
+.ch-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 80px 24px;
+}
+
+.ch-empty-icon {
+    width: 90px;
+    height: 90px;
+    border-radius: 50%;
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-text-muted);
+    margin-bottom: 24px;
+}
+
+.ch-empty-title {
+    font-size: 22px;
+    font-weight: 800;
+    margin-bottom: 10px;
+    color: var(--color-text-primary);
+}
+
+.ch-empty-text {
+    font-size: 14px;
+    color: var(--color-text-secondary);
+    max-width: 400px;
+    line-height: 1.7;
+    margin-bottom: 28px;
+}
+
+/* ===== SESSION LIST ===== */
+.ch-sessions-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.ch-session-card {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 18px 22px;
+    cursor: pointer;
+    transition: var(--transition);
+    border: 1px solid var(--color-border);
+}
+
+.ch-session-card:hover {
+    border-color: var(--color-border-hover);
+    background: var(--color-surface-2);
+    transform: translateX(4px);
+    box-shadow: var(--shadow-lg);
+}
+
+/* Icon */
+.ch-session-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-md);
+    background: var(--grad-brand);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(30, 58, 95, 0.35);
+}
+
+/* Body */
+.ch-session-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.ch-session-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--color-text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 4px;
+}
+
+.ch-session-meta {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-size: 12px;
+    color: var(--color-text-muted);
+}
+
+.ch-session-meta-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+/* Actions */
+.ch-session-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.ch-delete-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: var(--radius-sm);
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--color-text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition);
+    cursor: pointer;
+}
+
+.ch-delete-btn:hover {
+    background: var(--color-danger-bg);
+    color: var(--color-danger);
+    border-color: rgba(244, 63, 94, 0.25);
+}
+
+.ch-session-arrow {
+    color: var(--color-text-muted);
+    transition: var(--transition);
+}
+
+.ch-session-card:hover .ch-session-arrow {
+    color: var(--color-blue);
+    transform: translateX(3px);
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 640px) {
+    .ch-session-card {
+        padding: 14px 16px;
+        gap: 12px;
+    }
+
+    .ch-session-icon {
+        width: 38px;
+        height: 38px;
+    }
+
+    .ch-session-title {
+        font-size: 14px;
+    }
+
+    .ch-session-meta {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+    }
+
+    .ch-session-arrow {
+        display: none;
+    }
+}
