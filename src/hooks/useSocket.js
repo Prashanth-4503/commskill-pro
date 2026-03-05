@@ -1,21 +1,28 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { io } from 'socket.io-client';
 
-const SOCKET_URL = 'http://localhost:3001';
+const SOCKET_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
 
 export function useSocket() {
-    const socketRef = useRef(null);
+    const [socket] = useState(() => io(SOCKET_URL, { autoConnect: true }));
+    const [socketId, setSocketId] = useState(null);
     const [connected, setConnected] = useState(false);
     const [roomState, setRoomState] = useState(null);
-    const [phase, setPhase] = useState('idle'); // idle | lobby | discussion | results | ended
+    const [phase, setPhase] = useState('idle');
     const [evaluationResult, setEvaluationResult] = useState(null);
+    const socketRef = useRef(socket);
 
     useEffect(() => {
-        const socket = io(SOCKET_URL, { autoConnect: true });
         socketRef.current = socket;
 
-        socket.on('connect', () => setConnected(true));
-        socket.on('disconnect', () => setConnected(false));
+        socket.on('connect', () => {
+            setConnected(true);
+            setSocketId(socket.id);
+        });
+        socket.on('disconnect', () => {
+            setConnected(false);
+            setSocketId(null);
+        });
         socket.on('room-update', (data) => setRoomState(data));
         socket.on('phase-change', ({ phase: p, topic }) => {
             setPhase(p);
@@ -27,8 +34,16 @@ export function useSocket() {
             setRoomState(null);
         });
 
-        return () => socket.disconnect();
-    }, []);
+        return () => {
+            socket.off('connect');
+            socket.off('disconnect');
+            socket.off('room-update');
+            socket.off('phase-change');
+            socket.off('evaluation-result');
+            socket.off('room-ended');
+            socket.disconnect();
+        };
+    }, [socket]);
 
     const createRoom = useCallback((name) => {
         return new Promise((resolve) => {
@@ -79,15 +94,8 @@ export function useSocket() {
         setEvaluationResult(null);
     }, []);
 
-    const isHost = () => {
-        if (!socketRef.current || !roomState) return false;
-        // Host is always the first participant in the list — identified via socket.id
-        // We do an indirect check: host created room so name matches first participant
-        return true; // managed per-component via hostRef
-    };
-
     return {
-        socket: socketRef.current,
+        socket,
         connected,
         roomState,
         phase,
@@ -99,6 +107,6 @@ export function useSocket() {
         getSpeeches,
         broadcastEvaluation,
         endRoom,
-        socketId: socketRef.current?.id,
+        socketId,
     };
 }
